@@ -2,23 +2,36 @@ import * as React from "react";
 import "./App.css";
 import * as Rx from "rxjs/Rx";
 
-type SquareState = "X" | "O" | undefined;
+type SquareValue = "X" | "O" | undefined;
 
-interface SquareProps {
-    value: SquareState;
-    onClick: () => void;
+interface SquareState {
+    value: SquareValue;
+    //onClick: () => void;
 }
 
-function Square(props: SquareProps) {
-    return (
-        <button className="square" onClick={props.onClick}>
-            {props.value}
-        </button>
-    );
+class Square extends React.Component<{}, SquareState> {
+    constructor() {
+        super();
+        this.value = new Rx.Subject();
+        this.value.subscribe(xo => this.setState({ value: xo.value }));
+    }
+
+    value: Rx.Subject<SquareState>;
+    click: Rx.Subject<void>;
+
+    render() {
+        return (
+            <button className="square" onClick={() => this.click.next()}>
+                {this.state.value}
+            </button>
+        );
+    }
 }
+
+//function Square(props: SquareProps) {}
 
 interface BoardProps {
-    board: SquareState[];
+    board: SquareValue[];
     onClick: (i: number) => void;
 }
 
@@ -51,7 +64,7 @@ class Board extends React.Component<BoardProps> {
 }
 
 interface GameState {
-    history: SquareState[][];
+    history: SquareValue[][];
     turn: "X" | "O";
 }
 
@@ -137,7 +150,7 @@ class Game extends React.Component<{}, GameState> {
     }
 }
 
-function calculateWinner(board: SquareState[]) {
+function calculateWinner(board: SquareValue[]) {
     const lines = [
         [0, 1, 2],
         [3, 4, 5],
