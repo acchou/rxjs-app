@@ -4,63 +4,47 @@ import * as Rx from "rxjs/Rx";
 
 type SquareValue = "X" | "O" | undefined;
 
-interface SquareState {
+interface SquareProps {
     value: SquareValue;
-    //onClick: () => void;
+    squareNum: number;
 }
 
-class Square extends React.Component<{}, SquareState> {
-    constructor() {
-        super();
-        this.value = new Rx.Subject();
-        this.value.subscribe(xo => this.setState({ value: xo.value }));
-    }
-
-    value: Rx.Subject<SquareState>;
-    click: Rx.Subject<void>;
-
-    render() {
-        return (
-            <button className="square" onClick={() => this.click.next()}>
-                {this.state.value}
-            </button>
-        );
-    }
+function Square(props: SquareProps) {
+    return (
+        <button className="square" data-square-num={props.squareNum}>
+            {props.value}
+        </button>
+    );
 }
-
-//function Square(props: SquareProps) {}
 
 interface BoardProps {
     board: SquareValue[];
-    onClick: (i: number) => void;
 }
 
-class Board extends React.Component<BoardProps> {
-    renderSquare(i: number) {
-        return <Square value={this.props.board[i]} onClick={() => this.props.onClick(i)} />;
+function Board(props: BoardProps) {
+    function renderSquare(i: number) {
+        return <Square value={props.board[i]} squareNum={i} />;
     }
 
-    render() {
-        return (
-            <div>
-                <div className="board-row">
-                    {this.renderSquare(0)}
-                    {this.renderSquare(1)}
-                    {this.renderSquare(2)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(3)}
-                    {this.renderSquare(4)}
-                    {this.renderSquare(5)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(6)}
-                    {this.renderSquare(7)}
-                    {this.renderSquare(8)}
-                </div>
+    return (
+        <div>
+            <div className="board-row">
+                {renderSquare(0)}
+                {renderSquare(1)}
+                {renderSquare(2)}
             </div>
-        );
-    }
+            <div className="board-row">
+                {renderSquare(3)}
+                {renderSquare(4)}
+                {renderSquare(5)}
+            </div>
+            <div className="board-row">
+                {renderSquare(6)}
+                {renderSquare(7)}
+                {renderSquare(8)}
+            </div>
+        </div>
+    );
 }
 
 interface GameState {
@@ -70,23 +54,22 @@ interface GameState {
 
 interface ListItemMoveHistoryProps {
     move: number;
-    onClick: (move: number) => void;
 }
 
 function ListItemMoveHistory(props: ListItemMoveHistoryProps) {
     const move = props.move;
     const desc = move ? "Move #" + move : "Game start";
-    const handleClick = () => props.onClick(move);
+
     return (
         <li key={move}>
-            <a href="#" onClick={handleClick}>
+            <a href="#" className="move" data-move={move}>
                 {desc}
             </a>
         </li>
     );
 }
 
-class Game extends React.Component<{}, GameState> {
+class Game extends React.Component {
     constructor() {
         super();
         this.state = { history: [new Array(9).fill(null)], turn: "X" };
@@ -122,7 +105,7 @@ class Game extends React.Component<{}, GameState> {
         const board = history[history.length - 1];
 
         const moves = history.map((steps, move) => {
-            return <ListItemMoveHistory key={move} move={move} onClick={this.jumpTo} />;
+            return <ListItemMoveHistory key={move} move={move} />;
         });
 
         const winner = calculateWinner(board);
@@ -136,10 +119,7 @@ class Game extends React.Component<{}, GameState> {
         return (
             <div className="game">
                 <div className="game-board">
-                    <Board
-                        board={this.state.history[this.state.history.length - 1]}
-                        onClick={i => this.handleClick(i)}
-                    />
+                    <Board board={this.state.history[this.state.history.length - 1]} />
                 </div>
                 <div className="game-info">
                     <div className="status">{status}</div>
@@ -148,6 +128,29 @@ class Game extends React.Component<{}, GameState> {
             </div>
         );
     }
+}
+
+function target(ev: Event): HTMLElement {
+    return ev.target as HTMLElement;
+}
+
+function dataset(ev: Event): DOMStringMap {
+    return target(ev).dataset;
+}
+
+function addListeners() {
+    let moves = document.querySelectorAll(".move");
+    let squares = document.querySelectorAll(".squares");
+
+    const squareClicks$ = Rx.Observable
+        .fromEvent(squares, "click")
+        .map(dataset)
+        .map(data => data.squareNum);
+
+    const moveClicks$ = Rx.Observable
+        .fromEvent(moves, "click")
+        .map(dataset)
+        .map(data => data.move);
 }
 
 function calculateWinner(board: SquareValue[]) {
