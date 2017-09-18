@@ -17,8 +17,8 @@ interface SquareProps {
 
 function Square(props: SquareProps) {
     return (
-        <button className="square">
-            {props.value} onClick={props.onClick}
+        <button className="square" onClick={props.onClick}>
+            {props.value}
         </button>
     );
 }
@@ -107,9 +107,7 @@ function GameViewModel(input: GamewViewModelInputs): GameViewModelOutputs {
     );
 
     let clickMoveReducer = input.clickMove$.map(move => (history: HistoryType) => {
-        const newHistory = history.slice();
-        newHistory.slice(0, move + 1);
-        return newHistory;
+        return history.slice(0, move + 1);
     });
 
     let emptyBoard = new Array(9).fill(undefined);
@@ -129,10 +127,22 @@ class Game extends React.Component<{}, GameState> {
         clickMove$: new Rx.Subject()
     };
 
+    subscription: Rx.Subscription;
+
+    constructor() {
+        super();
+        this.state = { history: [new Array(9).fill(undefined)] };
+    }
+
     componentDidMount() {
         let outputs = GameViewModel(this.inputs);
-        // XXX Leaks subscription?
-        outputs.history$.subscribe(history => this.setState({ history: history }));
+        this.subscription = outputs.history$.subscribe(history =>
+            this.setState({ history: history })
+        );
+    }
+
+    componentWillUnmount() {
+        this.subscription.unsubscribe();
     }
 
     render() {
@@ -162,7 +172,7 @@ class Game extends React.Component<{}, GameState> {
                 <div className="game-board">
                     <Board
                         board={this.state.history[this.state.history.length - 1]}
-                        onClick={this.inputs.clickSquare$.next}
+                        onClick={n => this.inputs.clickSquare$.next(n)}
                     />
                 </div>
                 <div className="game-info">
