@@ -90,7 +90,7 @@ function last<T>(arr: Array<T>): T | undefined {
 }
 
 function nextMovePlayer(history: HistoryType) {
-    return history.length % 2 === 0 ? "X" : "O";
+    return history.length % 2 === 0 ? "O" : "X";
 }
 
 function GameViewModel(input: GamewViewModelInputs): GameViewModelOutputs {
