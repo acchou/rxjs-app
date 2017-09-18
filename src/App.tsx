@@ -2,10 +2,16 @@ import * as React from "react";
 import "./App.css";
 import * as Rx from "rxjs/Rx";
 
-type SquareValue = "X" | "O" | undefined;
+type SquareValueType = "X" | "O" | undefined;
+type BoardType = SquareValueType[];
+type HistoryType = BoardType[];
+type SquareIndexType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+// Moves are indexed and displayed; this is the type of the move index.
+type MoveIndexType = number;
 
 interface SquareProps {
-    value: SquareValue;
+    value: SquareValueType;
     onClick: () => void;
 }
 
@@ -18,12 +24,12 @@ function Square(props: SquareProps) {
 }
 
 interface BoardProps {
-    board: SquareValue[];
-    onClick: (squareNum: number) => void;
+    board: BoardType;
+    onClick: (squareNum: SquareIndexType) => void;
 }
 
 function Board(props: BoardProps) {
-    function renderSquare(i: number) {
+    function renderSquare(i: SquareIndexType) {
         return <Square value={props.board[i]} onClick={() => props.onClick(i)} />;
     }
 
@@ -49,7 +55,7 @@ function Board(props: BoardProps) {
 }
 
 interface MoveHistoryItemProps {
-    move: number;
+    move: MoveIndexType;
     onClick: () => void;
 }
 
@@ -67,50 +73,67 @@ function MoveHistoryItem(props: MoveHistoryItemProps) {
 }
 
 interface GameState {
-    history: SquareValue[][];
-    turn: "X" | "O";
+    history: HistoryType;
 }
 
-interface GameProps {
-    clickSquare: Rx.Subject<number>;
-    clickMove: Rx.Subject<number>;
+interface GamewViewModelInputs {
+    clickSquare$: Rx.Subject<SquareIndexType>;
+    clickMove$: Rx.Subject<MoveIndexType>;
 }
 
-class Game extends React.Component<GameProps, GameState> {
-    constructor(props: GameProps) {
-        super(props);
-        this.state = { history: [new Array(9).fill(null)], turn: "X" };
-    }
+interface GameViewModelOutputs {
+    history$: Rx.Observable<HistoryType>;
+}
 
-    // XXX
-    componentDidMount() {
-        this.props.clickSquare.map(i => {});
-    }
+function last<T>(arr: Array<T>): T | undefined {
+    return arr[arr.length - 1];
+}
 
-    handleClick(i: number) {
-        const history = this.state.history;
-        const board = history[history.length - 1].slice();
+function nextMovePlayer(history: HistoryType) {
+    return history.length % 2 === 0 ? "X" : "O";
+}
 
-        if (calculateWinner(board) || board[i]) {
-            return;
+function GameViewModel(input: GamewViewModelInputs): GameViewModelOutputs {
+    let clickSquareReducer = input.clickSquare$.map(
+        squareNum => (history: HistoryType): HistoryType => {
+            const board = last(history)!;
+            if (board[squareNum] || calculateWinner(board)) {
+                return history;
+            }
+            const newBoard = board.slice();
+            newBoard[squareNum] = nextMovePlayer(history);
+            return [...history, newBoard];
         }
+    );
 
-        this.setState((prevState, props) => {
-            board[i] = prevState.turn;
-            const turn = prevState.turn === "X" ? "O" : "X";
-            return { history: history.concat([board]), turn: turn };
-        });
-    }
+    let clickMoveReducer = input.clickMove$.map(move => (history: HistoryType) => {
+        const newHistory = history.slice();
+        newHistory.slice(0, move + 1);
+        return newHistory;
+    });
 
-    jumpTo = (move: number) => {
-        this.setState((prevState, props) => {
-            const history = prevState.history;
-            return {
-                history: history.slice(0, move + 1),
-                turn: move % 2 === 0 ? "X" : "O"
-            };
-        });
+    let emptyBoard = new Array(9).fill(undefined);
+
+    let history$ = Rx.Observable
+        .merge(clickSquareReducer, clickMoveReducer)
+        .scan((history, reducer) => reducer(history), [emptyBoard]);
+
+    return {
+        history$: history$
     };
+}
+
+class Game extends React.Component<{}, GameState> {
+    inputs: GamewViewModelInputs = {
+        clickSquare$: new Rx.Subject(),
+        clickMove$: new Rx.Subject()
+    };
+
+    componentDidMount() {
+        let outputs = GameViewModel(this.inputs);
+        // XXX Leaks subscription?
+        outputs.history$.subscribe(history => this.setState({ history: history }));
+    }
 
     render() {
         const history = this.state.history;
@@ -121,7 +144,7 @@ class Game extends React.Component<GameProps, GameState> {
                 <MoveHistoryItem
                     key={move}
                     move={move}
-                    onClick={() => this.props.clickMove.next(move)}
+                    onClick={() => this.inputs.clickMove$.next(move)}
                 />
             );
         });
@@ -131,7 +154,7 @@ class Game extends React.Component<GameProps, GameState> {
         if (winner) {
             status = "Winner: " + winner;
         } else {
-            status = "Next player: " + this.state.turn;
+            status = "Next player: " + nextMovePlayer(this.state.history);
         }
 
         return (
@@ -139,7 +162,7 @@ class Game extends React.Component<GameProps, GameState> {
                 <div className="game-board">
                     <Board
                         board={this.state.history[this.state.history.length - 1]}
-                        onClick={(squareNum: number) => this.props.clickSquare.next(squareNum)}
+                        onClick={this.inputs.clickSquare$.next}
                     />
                 </div>
                 <div className="game-info">
@@ -151,7 +174,7 @@ class Game extends React.Component<GameProps, GameState> {
     }
 }
 
-function calculateWinner(board: SquareValue[]) {
+function calculateWinner(board: SquareValueType[]) {
     const lines = [
         [0, 1, 2],
         [3, 4, 5],
@@ -169,7 +192,7 @@ function calculateWinner(board: SquareValue[]) {
             return board[a];
         }
     }
-    return null;
+    return undefined;
 }
 
 export default Game;
